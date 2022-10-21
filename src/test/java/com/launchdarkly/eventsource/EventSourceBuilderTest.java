@@ -1,9 +1,6 @@
 package com.launchdarkly.eventsource;
 
 import com.google.common.collect.ImmutableSet;
-import com.launchdarkly.logging.LDLogger;
-import com.launchdarkly.logging.LogCapture;
-import com.launchdarkly.logging.Logs;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,7 +15,6 @@ import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.launchdarkly.eventsource.EventSource.DEFAULT_BACKOFF_RESET_THRESHOLD;
 import static com.launchdarkly.eventsource.EventSource.DEFAULT_CONNECT_TIMEOUT;
@@ -27,7 +23,6 @@ import static com.launchdarkly.eventsource.EventSource.DEFAULT_READ_TIMEOUT;
 import static com.launchdarkly.eventsource.EventSource.DEFAULT_RECONNECT_TIME;
 import static com.launchdarkly.eventsource.EventSource.DEFAULT_WRITE_TIMEOUT;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
@@ -351,40 +346,6 @@ public class EventSourceBuilderTest {
   public void hasDefaultLogger() {
     try (EventSource es = builder.build()) {
       assertThat(es.logger, notNullValue());
-    }
-  }
-
-  @Test
-  public void logger() {
-    LogCapture logCapture = Logs.capture();
-    LDLogger myLogger = LDLogger.withAdapter(logCapture, "logname");
-    try (EventSource es = builder.logger(myLogger).build()) {
-      es.logger.warn("hello");
-      assertThat(logCapture.getMessages(), iterableWithSize(1));
-      assertEquals("hello", logCapture.getMessages().get(0).getText());
-    }
-  }
-
-  @Test
-  @SuppressWarnings("deprecation")
-  public void customLogger() {
-    final AtomicReference<String> receivedMessage = new AtomicReference<String>();
-    Logger myLogger = new Logger() {
-      public void warn(String message) {
-        receivedMessage.set(message);
-      }
-      
-      public void info(String message) {}
-      
-      public void error(String message) {}
-      
-      public void debug(String format, Object param1, Object param2) {}
-      
-      public void debug(String format, Object param) {}
-    };
-    try (EventSource es = builder.logger(myLogger).build()) {
-      es.logger.warn("hello");
-      assertEquals("hello", receivedMessage.get());
     }
   }
 

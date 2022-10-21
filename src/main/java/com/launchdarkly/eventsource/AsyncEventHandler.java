@@ -1,8 +1,7 @@
 package com.launchdarkly.eventsource;
 
 
-import com.launchdarkly.logging.LDLogger;
-
+import timber.log.Timber;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
@@ -18,13 +17,11 @@ import java.util.concurrent.Semaphore;
 final class AsyncEventHandler implements EventHandler {
   private final Executor executor;
   private final EventHandler eventSourceHandler;
-  private final LDLogger logger;
   final Semaphore semaphore; // visible for tests
 
-  AsyncEventHandler(Executor executor, EventHandler eventSourceHandler, LDLogger logger, Semaphore semaphore) {
+  AsyncEventHandler(Executor executor, EventHandler eventSourceHandler, Semaphore semaphore) {
     this.executor = executor;
     this.eventSourceHandler = eventSourceHandler;
-    this.logger = logger;
     this.semaphore = semaphore;
   }
 
@@ -77,8 +74,8 @@ final class AsyncEventHandler implements EventHandler {
   }
   
   private void handleUnexpectedError(Throwable error) {
-    logger.warn("Caught unexpected error from EventHandler: " + error.toString());
-    logger.debug("Stack trace: {}", new LazyStackTrace(error));
+    Timber.w("Caught unexpected error from EventHandler: " + error.toString());
+    Timber.d("Stack trace: {}", new LazyStackTrace(error));
     onErrorInternal(error);
   }
   
@@ -86,8 +83,8 @@ final class AsyncEventHandler implements EventHandler {
     try {
       eventSourceHandler.onError(error);
     } catch (Throwable errorFromErrorHandler) {
-      logger.warn("Caught unexpected error from EventHandler.onError(): " + errorFromErrorHandler.toString());
-      logger.debug("Stack trace: {}", new LazyStackTrace(error));
+      Timber.w("Caught unexpected error from EventHandler.onError(): " + errorFromErrorHandler.toString());
+      Timber.d("Stack trace: {}", new LazyStackTrace(error));
     }
   }
 

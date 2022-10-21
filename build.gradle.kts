@@ -48,31 +48,25 @@ repositories {
 }
 
 base {
-    group = "com.launchdarkly"
+    group = "com.devcycle"
     archivesBaseName = "okhttp-eventsource"
     version = version
 }
 
 java {
-    withJavadocJar()
-    withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
+
 object Versions {
-    const val launchdarklyLogging = "1.1.0"
+    const val timber_version = "5.0.1"
     const val okhttp = "4.9.3"
-    const val slf4j = "1.7.22"
 }
 
 dependencies {
-    api("com.launchdarkly:launchdarkly-logging:${Versions.launchdarklyLogging}")
+    implementation("com.jakewharton.timber:timber:${Versions.timber_version}")
     api("com.squareup.okhttp3:okhttp:${Versions.okhttp}")
-    api("org.slf4j:slf4j-api:${Versions.slf4j}")
-    // SLF4J is no longer referenced directly by okhttp-eventsource, but since the default behavior is
-    // to use the SLF4J adapter from com.launchdarkly.logging, we are still retaining the dependency
-    // here to make sure it is in the classpath.
     testImplementation("org.mockito:mockito-core:1.10.19")
     testImplementation("com.launchdarkly:test-helpers:1.0.0")
     testImplementation("com.google.guava:guava:30.1-jre")
@@ -95,14 +89,6 @@ tasks.javadoc.configure {
     // See JDK-8200363 (https://bugs.openjdk.java.net/browse/JDK-8200363)
     // for information about the -Xwerror option.
     (options as CoreJavadocOptions).addStringOption("Xwerror")
-
-    // The following should allow hyperlinks to com.launchdarkly.logging classes to go to
-    // the correct external URLs
-    if (options is StandardJavadocDocletOptions) {
-        (options as StandardJavadocDocletOptions).links(
-            "https://javadoc.io/doc/com.launchdarkly/launchdarkly-logging/${Versions.launchdarklyLogging}"
-        )
-    }
 }
 
 tasks.test.configure {
@@ -136,10 +122,6 @@ tasks.jacocoTestCoverageVerification.configure {
             "EventSource.Builder.createInitialClientBuilder()" to 1,
             "EventSource.Builder.defaultTrustManager()" to 2,
             "EventSource.Builder.loggerBaseName(java.lang.String)" to 2,
-            "LoggerBridge.ChannelImpl.log(com.launchdarkly.logging.LDLogLevel, java.lang.String, java.lang.Object[])" to 7,
-            "LoggerBridge.ChannelImpl.log(com.launchdarkly.logging.LDLogLevel, java.lang.String, java.lang.Object)" to 7,
-            "LoggerBridge.ChannelImpl.log(com.launchdarkly.logging.LDLogLevel, java.lang.Object)" to 7,
-            "LoggerBridge.ChannelImpl.isEnabled(com.launchdarkly.logging.LDLogLevel)" to 1,
             "MessageEvent.getData()" to 2,
             "SLF4JLogger.error(java.lang.String)" to 2,
             "ModernTLSSocketFactory.createSocket(java.lang.String, int)" to 1,

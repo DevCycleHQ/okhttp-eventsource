@@ -1,7 +1,6 @@
 package com.launchdarkly.eventsource;
 
-import com.launchdarkly.logging.LDLogger;
-import com.launchdarkly.logging.LDSLF4J;
+import timber.log.Timber;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -66,7 +65,6 @@ import okhttp3.Response;
  * which allows for greater efficiency in some use cases but has some behavioral constraints.
  */
 public class EventSource implements Closeable {
-  final LDLogger logger; // visible for tests
 
   /**
    * The default value for {@link Builder#reconnectTime(Duration)}: 1 second.
@@ -124,13 +122,6 @@ public class EventSource implements Closeable {
 
   EventSource(Builder builder) {
     this.name = builder.name == null ? "" : builder.name;
-    if (builder.logger == null) {
-      String loggerName = (builder.loggerBaseName == null ? EventSource.class.getCanonicalName() : builder.loggerBaseName) +
-          (name.isEmpty() ? "" : ("." + name));
-      this.logger = LDLogger.withAdapter(LDSLF4J.adapter(), loggerName);
-    } else {
-      this.logger = builder.logger;
-    }
     this.url = builder.url;
     this.headers = addDefaultHeaders(builder.headers);
     this.method = builder.method;
@@ -153,7 +144,7 @@ public class EventSource implements Closeable {
     } else {
       eventThreadSemaphore = null;
     }
-    this.handler = new AsyncEventHandler(this.eventExecutor, builder.handler, logger, eventThreadSemaphore);
+    this.handler = new AsyncEventHandler(this.eventExecutor, builder.handler, eventThreadSemaphore);
     this.connectionErrorHandler = builder.connectionErrorHandler == null ?
         ConnectionErrorHandler.DEFAULT : builder.connectionErrorHandler;
     this.readBufferSize = builder.readBufferSize;
@@ -181,11 +172,11 @@ public class EventSource implements Closeable {
    */
   public void start() {
     if (!readyState.compareAndSet(RAW, CONNECTING)) {
-      logger.info("Start method called on this already-started EventSource object. Doing nothing");
+      Timber.i("Start method called on this already-started EventSource object. Doing nothing");
       return;
     }
-    logger.debug("readyState change: {} -> {}", RAW, CONNECTING);
-    logger.info("Starting EventSource client using URI: {}", url);
+    Timber.d("readyState change: {} -> {}", RAW, CONNECTING);
+    Timber.i("Starting EventSource client using URI: {}", url);
     streamExecutor.execute(this::run);
   }
   
@@ -223,7 +214,7 @@ public class EventSource implements Closeable {
   @Override
   public void close() {
     ReadyState currentState = readyState.getAndSet(SHUTDOWN);
-    logger.debug("readyState change: {} -> {}", currentState, SHUTDOWN);
+    Timber.d("readyState change: {} -> {}", currentState, SHUTDOWN);
     if (currentState == SHUTDOWN) {
       return;
     }
@@ -285,7 +276,7 @@ public class EventSource implements Closeable {
       // Otherwise, an IllegalArgumentException "Unbalanced enter/exit" error is thrown by okhttp.
       // https://github.com/google/ExoPlayer/issues/1348
       call.cancel();
-      logger.debug("call cancelled");
+      Timber.d("call cancelled");
     }
   }
   
@@ -319,7 +310,7 @@ public class EventSource implements Closeable {
     } catch (RejectedExecutionException ignored) {
       // COVERAGE: there is no way to simulate this condition in unit tests
       call = null;
-      logger.debug("Rejected execution exception ignored: {}", ignored);
+      Timber.d("Rejected execution exception ignored: {}", ignored);
       // During shutdown, we tried to send a message to the event handler
       // Do not reconnect; the executor has been shut down
     }
@@ -340,7 +331,7 @@ public class EventSource implements Closeable {
     
     try {
       Duration sleepTime = backoffWithJitter(counter);
-      logger.info("Waiting {} milliseconds before reconnecting...", sleepTime.toMillis());
+      Timber.i("Waiting {} milliseconds before reconnecting...", sleepTime.toMillis());
       Thread.sleep(sleepTime.toMillis());
     } catch (InterruptedException ignored) { // COVERAGE: no way to cause this in unit tests
     }
@@ -352,7 +343,7 @@ public class EventSource implements Closeable {
     ConnectionErrorHandler.Action errorHandlerAction = ConnectionErrorHandler.Action.PROCEED;
 
     ReadyState stateBeforeConnecting = readyState.getAndSet(CONNECTING);
-    logger.debug("readyState change: {} -> {}", stateBeforeConnecting, CONNECTING);
+    Timber.d("readyState change: {} -> {}", stateBeforeConnecting, CONNECTING);
     
     connectedTime.set(0);
     call = client.newCall(buildRequest());
@@ -370,32 +361,32 @@ public class EventSource implements Closeable {
           // should check the state in case we've been deliberately closed from elsewhere.
           ReadyState state = readyState.get();
           if (state != SHUTDOWN && state != CLOSED) {
-            logger.warn("Connection unexpectedly closed");
+            Timber.w("Connection unexpectedly closed");
             errorHandlerAction = connectionErrorHandler.onConnectionError(new EOFException());
           }
         } else {
-          logger.debug("Unsuccessful response: {}", response);
+          Timber.d("Unsuccessful response: {}", response);
           errorHandlerAction = dispatchError(new UnsuccessfulResponseException(response.code()));
         }
       }
     } catch (IOException e) {
       ReadyState state = readyState.get();
       if (state != SHUTDOWN && state != CLOSED) {
-        logger.debug("Connection problem: {}", e);
+        Timber.d("Connection problem: {}", e);
         errorHandlerAction = dispatchError(e);
       }
     } finally {
       if (errorHandlerAction == ConnectionErrorHandler.Action.SHUTDOWN) {
-        logger.info("Connection has been explicitly shut down by error handler");
+        Timber.i("Connection has been explicitly shut down by error handler");
         close();
       } else {
         boolean wasOpen = readyState.compareAndSet(OPEN, CLOSED);
         boolean wasConnecting = readyState.compareAndSet(CONNECTING, CLOSED);
         if (wasOpen) {
-          logger.debug("readyState change: {} -> {}", OPEN, CLOSED);  
+          Timber.d("readyState change: {} -> {}", OPEN, CLOSED);
           handler.onClosed(); 
         } else if (wasConnecting) {
-          logger.debug("readyState change: {} -> {}", CONNECTING, CLOSED);  
+          Timber.d("readyState change: {} -> {}", CONNECTING, CLOSED);
         }
       }
     }
@@ -421,11 +412,11 @@ public class EventSource implements Closeable {
     ReadyState previousState = readyState.getAndSet(OPEN);
     if (previousState != CONNECTING) {
       // COVERAGE: there is no way to simulate this condition in unit tests
-      logger.warn("Unexpected readyState change: " + previousState + " -> " + OPEN);
+      Timber.w("Unexpected readyState change: " + previousState + " -> " + OPEN);
     } else {
-      logger.debug("readyState change: {} -> {}", previousState, OPEN);
+      Timber.d("readyState change: {} -> {}", previousState, OPEN);
     }
-    logger.info("Connected to EventSource stream.");
+    Timber.i("Connected to EventSource stream.");
     handler.onOpen();
     
     EventParser parser = new EventParser(
@@ -435,8 +426,7 @@ public class EventSource implements Closeable {
         connectionHandler,
         readBufferSize,
         streamEventData,
-        expectFields,
-        logger
+        expectFields
         );
     
     // COVERAGE: the isInterrupted() condition is not encountered in unit tests and it's unclear if it can ever happen
@@ -578,8 +568,6 @@ public class EventSource implements Closeable {
     private RequestBody body = null;
     private OkHttpClient.Builder clientBuilder;
     private int readBufferSize = DEFAULT_READ_BUFFER_SIZE;
-    private LDLogger logger = null;
-    private String loggerBaseName = null;
     private int maxEventTasksInFlight = 0;
     private boolean streamEventData;
     private Set<String> expectFields = null;
@@ -670,11 +658,9 @@ public class EventSource implements Closeable {
     }
     
     /**
-     * Set the name for this EventSource client to be used when naming thread pools (and, possibly, the logger).
+     * Set the name for this EventSource client to be used when naming thread pools.
      * This is mainly useful when multiple EventSource clients exist within the same process.
      * <p>
-     * The name only affects logging when using the default SLF4J integration; if you have specified a custom
-     * {@link #logger(LDLogger)}, the logging facade has its own way to specify a logger name. 
      *
      * @param name the name (without any whitespaces)
      * @return the builder
@@ -922,86 +908,6 @@ public class EventSource implements Closeable {
         throw new IllegalArgumentException("readBufferSize must be greater than zero");
       }
       this.readBufferSize = readBufferSize;
-      return this;
-    }
-    
-    /**
-     * Specifies a custom logger to receive EventSource logging.
-     * <p>
-     * This has been superseded by {@link #logger(LDLogger)}. The
-     * <a href="https://github.com/launchdarkly/java-logging">com.launchdarkly.logging</a>
-     * facade used by that method provides many options for customizing logging behavior.
-     * The {@link Logger} interface defined by {@code okhttp-eventsource} will be removed
-     * in a future major version release.
-     * <p>
-     * If you do not provide a logger, the default is to send log output to SLF4J.
-     * 
-     * @param logger a {@link Logger} implementation, or null to use the default (SLF4J)
-     * @return the builder
-     * @since 2.3.0
-     * @deprecated use {@link #logger(LDLogger)}
-     */
-    @Deprecated
-    public Builder logger(Logger logger) {
-      this.logger = logger == null ? null : LoggerBridge.wrapLogger(logger);
-      return this;
-    }
-
-    /**
-     * Specifies a custom logger to receive EventSource logging.
-     * <p>
-     * This method uses the {@link LDLogger} type from
-     * <a href="https://github.com/launchdarkly/java-logging">com.launchdarkly.logging</a>, a
-     * facade that provides several logging implementations as well as the option to forward
-     * log output to SLF4J or another framework. Here is an example of configuring it to use
-     * the basic console logging implementation, and to tag the output with the name "logname":
-     * <pre><code>
-     *   // import com.launchdarkly.logging.*;
-     *   
-     *   builder.logger(
-     *      LDLogger.withAdapter(Logs.basic(), "logname") 
-     *   );
-     * </code></pre>
-     * <p>
-     * If you do not provide a logger, the default is to send log output to SLF4J, and to use
-     * a logger name based on the {@link #loggerBaseName(String)} and {@link #name(String)}
-     * settings. In a future major version, the default behavior may be changed so that this
-     * library no longer has a mandatory dependency on SLF4J.
-     * 
-     * @param logger an {@link LDLogger} implementation, or null to use the default (SLF4J)
-     * @return the builder
-     * @since 2.7.0
-     */
-    public Builder logger(LDLogger logger) {
-      this.logger = logger;
-      return this;
-    }
-
-    /**
-     * Specifies the base logger name to use for SLF4J logging.
-     * <p>
-     * The default is {@code com.launchdarkly.eventsource.EventSource}, plus any name suffix specified
-     * by {@link #name(String)}. If you instead use {@link #logger(Logger)} to specify some other log
-     * destination rather than SLF4J, this name is unused.
-     * <p>
-     * This method is now deprecated, because the logging facade used by {@link #logger(LDLogger)}
-     * makes it easy to set a logger name for SLF4J, as in this example:
-     * <pre><code>
-     *   // import com.launchdarkly.logging.*;
-     *   
-     *   builder.logger(
-     *      LDLogger.withAdapter(LDSLF4J.adapter(), "my.preferred.log.name") 
-     *   );
-     * </code></pre>
-     * 
-     * @param loggerBaseName the SLF4J logger name, or null to use the default
-     * @return the builder
-     * @since 2.3.0
-     * @deprecated use {@link #logger(LDLogger)}
-     */
-    @Deprecated
-    public Builder loggerBaseName(String loggerBaseName) {
-      this.loggerBaseName = loggerBaseName;
       return this;
     }
 

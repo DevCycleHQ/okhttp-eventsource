@@ -1,6 +1,6 @@
 package com.launchdarkly.eventsource;
 
-import com.launchdarkly.logging.LDLogger;
+import timber.log.Timber;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,7 +36,6 @@ final class EventParser {
   private final ConnectionHandler connectionHandler;
   private final boolean streamEventData;
   private Set<String> expectFields;
-  private final LDLogger logger;
   private final URI origin;
 
   private BufferedLineParser lineParser;
@@ -60,8 +59,7 @@ final class EventParser {
       ConnectionHandler connectionHandler,
       int readBufferSize,
       boolean streamEventData,
-      Set<String> expectFields,
-      LDLogger logger
+      Set<String> expectFields
       ) {
     this.lineParser = new BufferedLineParser(inputStream,
         readBufferSize < MIN_READ_BUFFER_SIZE ? MIN_READ_BUFFER_SIZE : readBufferSize);
@@ -70,7 +68,6 @@ final class EventParser {
     this.connectionHandler = connectionHandler;
     this.streamEventData = streamEventData;
     this.expectFields = expectFields;
-    this.logger = logger;
     
     dataBuffer = new ByteArrayOutputStream(VALUE_BUFFER_INITIAL_CAPACITY);
   }
@@ -258,8 +255,8 @@ final class EventParser {
     try {
       handler.onComment(comment);
     } catch (Exception e) {
-      logger.warn("Message handler threw an exception: " + e.toString());
-      logger.debug("Stack trace: {}", new LazyStackTrace(e));
+      Timber.w("Message handler threw an exception: " + e.toString());
+      Timber.d("Stack trace: {}", new LazyStackTrace(e));
       handler.onError(e);
     }
   }
@@ -293,11 +290,11 @@ final class EventParser {
   
   private void dispatchMessage(MessageEvent message) {
     try {
-      logger.debug("Dispatching message: {}", message);
+      Timber.d("Dispatching message: {}", message);
       handler.onMessage(message.getEventName(), message);
     } catch (Exception e) {
-      logger.warn("Message handler threw an exception: " + e.toString());
-      logger.debug("Stack trace: {}", new LazyStackTrace(e));
+      Timber.w("Message handler threw an exception: " + e.toString());
+      Timber.d("Stack trace: {}", new LazyStackTrace(e));
       handler.onError(e);
     }
   }
